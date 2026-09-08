@@ -1,24 +1,2 @@
-import { FormEvent, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
-import { formatDate, warrantyState } from '../lib/date'
-
-type Result={warranty_item_id:string;invoice_id:string;invoice_number:string;purchase_date:string;receipt_image_path:string|null;customer_name:string|null;phone:string;product_code:string|null;product_name:string;serial_number:string|null;warranty_expiry_date:string}
-
-export default function Search(){
-  const [q,setQ]=useState(''); const [rows,setRows]=useState<Result[]>([]); const [loading,setLoading]=useState(false); const [error,setError]=useState('')
-  async function go(e?:FormEvent){e?.preventDefault(); if(!q.trim())return;setLoading(true);setError('');const {data,error}=await supabase.rpc('search_warranties',{search_text:q.trim()});setLoading(false);if(error){setError(error.message);return}setRows((data||[]) as Result[])}
-  async function viewReceipt(path:string|null){ if(!path)return; const {data,error}=await supabase.storage.from('receipts').createSignedUrl(path,120); if(error||!data){setError(error?.message||'Không mở được ảnh');return} window.open(data.signedUrl,'_blank','noopener,noreferrer') }
-  return <>
-    <div className="page-head"><div><h1>Tra cứu bảo hành</h1><p>Tìm theo SĐT, mã hóa đơn, mã hàng, tên sản phẩm hoặc serial.</p></div></div>
-    <form className="searchbar" onSubmit={go}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ví dụ: 0905..., 004321, Sharp..."/><button className="primary">{loading?'Đang tìm…':'Tìm kiếm'}</button></form>
-    {error&&<div className="alert danger-bg">{error}</div>}
-    <div className="results">
-      {rows.map(r=>{const s=warrantyState(r.warranty_expiry_date);return <article className="card result" key={r.warranty_item_id}>
-        <div><h3>{r.product_name}</h3><p>{r.customer_name||'Khách hàng'} · {r.phone}</p><p>HĐ: <b>{r.invoice_number}</b> · Mua: {formatDate(r.purchase_date)}</p><p>Mã hàng: {r.product_code||'—'} · Serial: {r.serial_number||'—'}</p></div>
-        <div className="result-side"><span className={`badge ${s.className}`}>{s.label}</span><span>Hết hạn: {formatDate(r.warranty_expiry_date)}</span><div className="row-buttons"><Link className="ghost link-btn" to={`/warranty/${r.invoice_id}`}>Chi tiết</Link><button className="ghost" disabled={!r.receipt_image_path} onClick={()=>viewReceipt(r.receipt_image_path)}>{r.receipt_image_path?'Xem hóa đơn':'Chưa có ảnh'}</button></div></div>
-      </article>})}
-      {!loading&&q&&rows.length===0&&!error&&<div className="empty">Không tìm thấy dữ liệu phù hợp.</div>}
-    </div>
-  </>
-}
+import{FormEvent,useState}from'react';import{Link}from'react-router-dom';import{api}from'../lib/api'
+export default function Search(){const[q,setQ]=useState(''),[data,setData]=useState<any>(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);async function run(e?:FormEvent){e?.preventDefault();setBusy(true);setErr('');try{setData(await api({action:'search',q}))}catch(e:any){setErr(e.message)}finally{setBusy(false)}}return <><div className="page-head"><div><h1>Tra cứu</h1><p>Tìm bằng SĐT, tên khách, SKU, Serial/IMEI, mã hóa đơn hoặc mã hồ sơ.</p></div></div><form className="searchbar" onSubmit={run}><input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Nhập thông tin cần tìm…"/><button className="primary" disabled={!q.trim()||busy}>{busy?'Đang tìm…':'Tìm kiếm'}</button></form>{err&&<div className="alert danger">{err}</div>}{data&&<><section className="card"><h2>Sản phẩm ({data.products.length})</h2>{data.products.map((p:any)=><Link className="result-row" key={p.id} to={`/product/${p.id}`}><b>{p.name}</b><span>{p.customer?.full_name} · {p.customer?.phone}</span><small>SKU: {p.sku||'—'} · Serial: {p.serial_number||'—'} · HĐ: {p.invoice_number||'—'} · Hết BH: {p.warranty_end_date||'—'}</small></Link>)}</section><section className="card"><h2>Hồ sơ xử lý ({data.cases.length})</h2>{data.cases.map((r:any)=><Link className="result-row" key={r.id} to={`/case/${r.id}`}><b>{r.case_code} · {r.status}</b><span>{r.customer?.full_name} · {r.product?.name}</span><small>{r.issue_description}</small></Link>)}</section><section className="card"><h2>Khách hàng ({data.customers.length})</h2>{data.customers.map((c:any)=><div className="result-row" key={c.id}><b>{c.full_name}</b><span>{c.phone}</span><small>{c.address||''}</small></div>)}</section></>}</>}

@@ -24,10 +24,10 @@ export const handler = async (event) => {
 
   const { data: actorProfile } = await supabase
     .from('profiles')
-    .select('role,active,archived_at')
+    .select('role,active,is_active,archived_at,full_name')
     .eq('id', actor.id)
     .maybeSingle()
-  if (!actorProfile || actorProfile.role !== 'admin' || !actorProfile.active || actorProfile.archived_at) {
+  if (!actorProfile || actorProfile.role !== 'admin' || actorProfile.active === false || actorProfile.is_active === false || actorProfile.archived_at) {
     return json(403, { error: 'Chỉ Admin được quản lý tài khoản nhân viên.' })
   }
 
@@ -37,26 +37,36 @@ export const handler = async (event) => {
 
   const audit = async (entityId, note, oldData = null, newData = null) => {
     await supabase.from('audit_logs').insert({
-      actor_user_id: actor.id,
-      action,
       entity_type: 'profiles',
       entity_id: entityId,
-      old_data: oldData,
-      new_data: newData,
-      note,
+      action: `${action}: ${note}`,
+      before_data: oldData,
+      after_data: newData,
+      actor_id: actor.id,
+      actor_name: actorProfile.full_name || actor.email || 'Admin',
     })
   }
 
+  if (action === 'list') {
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+    if (error) return json(400, { error: error.message })
+    return json(200, { rows: data || [] })
+  }
+
   if (action === 'create') {
-    const email = String(body.email || '').trim().toLowerCase()
+    const username = String(body.username || '').trim().toLowerCase()
+    const suppliedEmail = String(body.email || '').trim().toLowerCase()
+    const email = suppliedEmail || `${username}@warranty.local`
     const password = String(body.password || '')
     const fullName = String(body.full_name || '').trim()
     const employeeCode = String(body.employee_code || '').trim()
     const department = String(body.department || '').trim()
     const role = ['admin', 'staff', 'viewer'].includes(body.role) ? body.role : 'viewer'
-    if (!email || !email.includes('@') || password.length < 8 || !fullName || !employeeCode) {
-      return json(400, { error: 'Cần họ tên, mã nhân viên, email hợp lệ và mật khẩu tối thiểu 8 ký tự.' })
+    if (!username || !/^[a-z0-9._-]{2,40}$/.test(username) || !email.includes('@') || password.length < 8 || !fullName || !employeeCode) {
+      return json(400, { error: 'Cần họ tên, mã nhân viên, tên đăng nhập hợp lệ và mật khẩu tối thiểu 8 ký tự.' })
     }
+    const { data: dup } = await supabase.from('profiles').select('id').ilike('username', username).maybeSingle()
+    if (dup) return json(400, { error: 'Tên đăng nhập đã tồn tại.' })
 
     const { data, error } = await supabase.auth.admin.createUser({
       email,
@@ -66,21 +76,25 @@ export const handler = async (event) => {
     })
     if (error || !data.user) return json(400, { error: error?.message || 'Không tạo được tài khoản.' })
 
-    const { error: profileError } = await supabase.from('profiles').update({
+    const { error: profileError } = await supabase.from('profiles').upsert({
+      id: data.user.id,
       full_name: fullName,
       email,
+      username,
       employee_code: employeeCode,
       department: department || null,
       role,
       active: true,
+      is_active: true,
       archived_at: null,
-    }).eq('id', data.user.id)
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
 
     if (profileError) {
       await supabase.auth.admin.deleteUser(data.user.id)
       return json(400, { error: profileError.message })
     }
-    await audit(data.user.id, `Tạo nhân viên ${employeeCode}`, null, { email, full_name: fullName, employee_code: employeeCode, department, role, active: true })
+    await audit(data.user.id, `Tạo nhân viên ${employeeCode}`, null, { username, email, full_name: fullName, employee_code: employeeCode, department, role, active: true })
     return json(200, { ok: true, id: data.user.id })
   }
 
@@ -98,10 +112,13 @@ export const handler = async (event) => {
     const patch = {
       full_name: String(body.full_name ?? oldProfile.full_name ?? '').trim(),
       employee_code: String(body.employee_code ?? oldProfile.employee_code ?? '').trim(),
+      username: String(body.username ?? oldProfile.username ?? '').trim().toLowerCase(),
       department: String(body.department ?? oldProfile.department ?? '').trim() || null,
       role,
     }
-    if (!patch.full_name || !patch.employee_code) return json(400, { error: 'Họ tên và mã nhân viên không được để trống.' })
+    if (!patch.full_name || !patch.employee_code || !/^[a-z0-9._-]{2,40}$/.test(patch.username)) return json(400, { error: 'Họ tên, mã nhân viên và tên đăng nhập không được để trống.' })
+    const { data: sameUsername } = await supabase.from('profiles').select('id').ilike('username', patch.username).neq('id', userId).maybeSingle()
+    if (sameUsername) return json(400, { error: 'Tên đăng nhập đã được sử dụng.' })
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
     if (error) return json(400, { error: error.message })
     await audit(userId, 'Cập nhật thông tin/phân quyền nhân viên', oldProfile, { ...oldProfile, ...patch })
@@ -112,7 +129,7 @@ export const handler = async (event) => {
     const active = Boolean(body.active)
     const { error: authError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: active ? 'none' : '876000h' })
     if (authError) return json(400, { error: authError.message })
-    const { error } = await supabase.from('profiles').update({ active }).eq('id', userId)
+    const { error } = await supabase.from('profiles').update({ active, is_active: active }).eq('id', userId)
     if (error) return json(400, { error: error.message })
     await audit(userId, active ? 'Mở khóa tài khoản' : 'Khóa tài khoản', oldProfile, { ...oldProfile, active })
     return json(200, { ok: true })
@@ -122,7 +139,7 @@ export const handler = async (event) => {
     const archivedAt = new Date().toISOString()
     const { error: authError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
     if (authError) return json(400, { error: authError.message })
-    const { error } = await supabase.from('profiles').update({ active: false, archived_at: archivedAt }).eq('id', userId)
+    const { error } = await supabase.from('profiles').update({ active: false, is_active: false, archived_at: archivedAt }).eq('id', userId)
     if (error) return json(400, { error: error.message })
     await audit(userId, 'Lưu trữ tài khoản nhân viên (xóa mềm)', oldProfile, { ...oldProfile, active: false, archived_at: archivedAt })
     return json(200, { ok: true })
@@ -131,7 +148,7 @@ export const handler = async (event) => {
   if (action === 'restore') {
     const { error: authError } = await supabase.auth.admin.updateUserById(userId, { ban_duration: 'none' })
     if (authError) return json(400, { error: authError.message })
-    const { error } = await supabase.from('profiles').update({ active: true, archived_at: null }).eq('id', userId)
+    const { error } = await supabase.from('profiles').update({ active: true, is_active: true, archived_at: null }).eq('id', userId)
     if (error) return json(400, { error: error.message })
     await audit(userId, 'Khôi phục tài khoản nhân viên', oldProfile, { ...oldProfile, active: true, archived_at: null })
     return json(200, { ok: true })

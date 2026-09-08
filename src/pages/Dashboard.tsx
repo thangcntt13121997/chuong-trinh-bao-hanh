@@ -1,25 +1,2 @@
-import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
-
-export default function Dashboard() {
-  const [stats, setStats] = useState({ invoices: 0, items: 0, active: 0, expiring: 0 })
-  const [error,setError]=useState('')
-  useEffect(() => { void load() }, [])
-  async function load() {
-    const {data,error}=await supabase.rpc('dashboard_stats')
-    if(error){setError(error.message);return}
-    const row=Array.isArray(data)?data[0]:data
-    if(row)setStats({invoices:Number(row.invoices)||0,items:Number(row.items)||0,active:Number(row.active)||0,expiring:Number(row.expiring)||0})
-  }
-  return <>
-    <div className="page-head"><div><h1>Tổng quan</h1><p>Warranty Management Core V0.1.1</p></div></div>
-    {error&&<div className="alert danger-bg">{error}</div>}
-    <section className="stats">
-      <div className="stat"><span>Hóa đơn</span><strong>{stats.invoices}</strong></div>
-      <div className="stat"><span>Sản phẩm bảo hành</span><strong>{stats.items}</strong></div>
-      <div className="stat"><span>Còn bảo hành</span><strong>{stats.active}</strong></div>
-      <div className="stat"><span>Sắp hết ≤30 ngày</span><strong>{stats.expiring}</strong></div>
-    </section>
-    <div className="card"><h2>Quy trình nhanh</h2><p>1. Tạo hồ sơ → 2. Chụp hóa đơn → 3. Tra cứu → 4. Mở chi tiết để sửa → 5. Mọi thay đổi quan trọng được ghi nhật ký.</p></div>
-  </>
-}
+import{useEffect,useState}from'react';import{Link}from'react-router-dom';import{api}from'../lib/api'
+export default function Dashboard(){const[data,setData]=useState<any>(null),[err,setErr]=useState('');useEffect(()=>{api({action:'dashboard'}).then(setData).catch(e=>setErr(e.message))},[]);return <><div className="page-head"><div><h1>Tổng quan</h1><p>Warranty Management Core V0.1.1.2 · Legacy Schema Compatibility</p></div></div>{err&&<div className="alert danger">{err}</div>}<div className="stat-grid"><div className="stat"><span>Khách hàng</span><b>{data?.stats?.customers??'—'}</b></div><div className="stat"><span>Sản phẩm bảo hành</span><b>{data?.stats?.products??'—'}</b></div><div className="stat"><span>Hồ sơ xử lý</span><b>{data?.stats?.cases??'—'}</b></div><div className="stat"><span>Lịch hẹn sắp tới</span><b>{data?.stats?.appointments??'—'}</b></div></div><div className="card"><h2>Hồ sơ gần đây</h2><div className="table-wrap"><table><thead><tr><th>Mã hồ sơ</th><th>Khách hàng</th><th>Sản phẩm</th><th>Trạng thái</th><th>Tiếp nhận</th></tr></thead><tbody>{(data?.recent||[]).map((r:any)=><tr key={r.id}><td><Link to={`/case/${r.id}`}>{r.case_code}</Link></td><td>{r.customer?.full_name}<small>{r.customer?.phone}</small></td><td>{r.product?.name}<small>{r.product?.serial_number||r.product?.sku}</small></td><td><span className="badge">{r.status}</span></td><td>{r.received_at?.slice(0,10)}</td></tr>)}</tbody></table></div>{data&&!(data.recent||[]).length&&<p className="muted">Chưa có hồ sơ xử lý.</p>}</div></>}
