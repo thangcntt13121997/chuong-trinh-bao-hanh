@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
+const fullStaff={create_warranty:true,receive_faulty:true,search:true,view_cases:true,edit_cases:true,manage_appointments:true,upload_files:true}
+const viewerDefaults={create_warranty:false,receive_faulty:false,search:true,view_cases:true,edit_cases:false,manage_appointments:false,upload_files:false}
+const normalizePermissions=(role,p)=>role==='admin'?fullStaff:{...(role==='staff'?fullStaff:viewerDefaults),...(p&&typeof p==='object'?p:{})}
+
 const json = (statusCode, body) => ({
   statusCode,
   headers: { 'content-type': 'application/json; charset=utf-8' },
@@ -84,6 +88,7 @@ export const handler = async (event) => {
       employee_code: employeeCode,
       department: department || null,
       role,
+      permissions: normalizePermissions(role, body.permissions),
       active: true,
       is_active: true,
       archived_at: null,
@@ -115,6 +120,7 @@ export const handler = async (event) => {
       username: String(body.username ?? oldProfile.username ?? '').trim().toLowerCase(),
       department: String(body.department ?? oldProfile.department ?? '').trim() || null,
       role,
+      permissions: normalizePermissions(role, body.permissions ?? oldProfile.permissions),
     }
     if (!patch.full_name || !patch.employee_code || !/^[a-z0-9._-]{2,40}$/.test(patch.username)) return json(400, { error: 'Họ tên, mã nhân viên và tên đăng nhập không được để trống.' })
     const { data: sameUsername } = await supabase.from('profiles').select('id').ilike('username', patch.username).neq('id', userId).maybeSingle()

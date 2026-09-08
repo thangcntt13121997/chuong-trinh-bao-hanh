@@ -1,48 +1,34 @@
-# Warranty Management Core V0.1.1.2
+# Warranty Management Core V0.1.1.3
 
-## Legacy Schema Compatibility & Full Feature Restore
+## Permission Repair & Old UI Restore
 
-Phiên bản này được xây lại theo **database thực tế đang có** của siêu thị:
-`customers`, `products`, `service_cases`, `service_appointments`, `case_events`, `attachments`, `generated_documents`, `audit_logs`, `profiles`.
+Bản này nâng trực tiếp từ V0.1.1.2 và giữ nguyên database legacy hiện tại.
 
-### Không còn dùng
-V0.1.1.2 **không sử dụng** các bảng `invoices` hoặc `warranty_items`. Không chạy lại các SQL cũ đã tạo cho kiến trúc đó.
+### Thay đổi chính
+- Khôi phục giao diện vận hành gần với bản cũ, đặc biệt trên điện thoại.
+- Thanh menu dưới mobile: Tổng quan / Bảo hành mua mới / Tiếp nhận hàng lỗi / Hồ sơ bảo hành.
+- Bổ sung màn hình **Tiếp nhận hàng lỗi** riêng: tìm sản phẩm đã mua -> chọn sản phẩm -> ghi nhận lỗi/tình trạng/phụ kiện -> tạo hồ sơ xử lý.
+- Dashboard quay lại kiểu vận hành: hồ sơ đang xử lý, chờ NCC, lịch sắp tới, quá hạn trả khách, hồ sơ mới tiếp nhận và lịch sắp tới.
+- Phân quyền nhân viên theo từng chức năng bằng checkbox. Quyền được kiểm tra tại Netlify Function phía server.
+- Staff cũ sau migration được cấp đủ quyền nghiệp vụ mặc định, tránh tình trạng đã phân quyền nhưng giao diện/API không hiểu.
+- Profile giao diện lấy qua API server thay vì truy vấn trực tiếp bảng profiles, tránh lỗi do RLS cũ làm menu biến mất.
 
-## Chức năng
-- Đăng nhập bằng **tên đăng nhập** thay vì bắt buộc email.
-- Dashboard theo customers / products / service_cases / appointments.
-- Lưu bảo hành mới: khách hàng, nhiều sản phẩm, mã hóa đơn, ngày mua, SKU, hãng, model, serial, phiếu BH, hạn BH, ảnh hóa đơn.
-- Tra cứu chung theo tên/SĐT/SKU/serial/mã hóa đơn/mã hồ sơ.
-- Chi tiết sản phẩm, chỉnh sửa, upload/xem ảnh hóa đơn bằng signed URL.
-- Tiếp nhận hồ sơ bảo hành/sửa chữa trên `service_cases`.
-- Theo dõi trạng thái, lịch sử `case_events`, lịch hẹn `service_appointments`, file `attachments`, tài liệu `generated_documents`.
-- Quản lý nhân viên: tạo, username, phân quyền Admin/Staff/Viewer, khóa/mở, lưu trữ, reset password.
-- Nhật ký thay đổi dùng đúng schema `audit_logs` hiện tại.
-- Xóa sản phẩm theo kiểu lưu trữ mềm.
+## Nâng cấp từ V0.1.1.2
+1. Supabase -> SQL Editor.
+2. Chạy duy nhất:
+   `supabase/upgrade_v0.1.1.3_permissions_and_ui.sql`
+3. Upload toàn bộ source V0.1.1.3 lên GitHub để ghi đè source hiện tại.
+4. Giữ nguyên 4 biến Netlify:
+   - VITE_SUPABASE_URL
+   - VITE_SUPABASE_PUBLISHABLE_KEY
+   - SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+5. Netlify -> Deploys -> Trigger deploy -> Clear cache and deploy site.
 
-## Nâng cấp database hiện tại
-Chỉ chạy file:
+## Kiểm tra sau deploy
+- Admin `it` vào Nhân viên -> chọn một nhân viên -> bấm **Đủ quyền nhân viên** -> **Lưu thay đổi & quyền**.
+- Đăng xuất, đăng nhập tài khoản nhân viên đó.
+- Menu phải có Bảo hành mua mới, Tiếp nhận hàng lỗi, Tra cứu và Hồ sơ bảo hành.
+- Tạo thử một hồ sơ tiếp nhận hàng lỗi từ sản phẩm đã lưu.
 
-`supabase/upgrade_v0.1.1.2_legacy_compat.sql`
-
-**Không chạy lại** `schema.sql`, `upgrade_v0.1.1.sql`, `upgrade_v0.1.1.1.sql`.
-
-Migration chỉ bổ sung các cột tương thích như `products.invoice_number`, cột lưu trữ mềm, username/profile còn thiếu, index và bucket private `warranty-files`; không xóa 9 bảng hiện tại.
-
-## Netlify Environment Variables
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-
-Có thể giữ `VITE_SUPABASE_ANON_KEY` cũ, nhưng V0.1.1.2 ưu tiên `VITE_SUPABASE_PUBLISHABLE_KEY`.
-
-## Deploy
-1. Chạy migration SQL nói trên trong Supabase SQL Editor.
-2. Upload toàn bộ source V0.1.1.2 lên repository GitHub để ghi đè source ứng dụng hiện tại.
-3. Không upload `.env` lên GitHub.
-4. Netlify → Deploys → Trigger deploy → **Clear cache and deploy site**.
-5. Đăng nhập bằng username hiện có. Migration tự lấy email từ `auth.users` và tạo username cho tài khoản cũ nếu cần.
-
-## Lưu ý file hóa đơn
-File mới được lưu ở bucket private `warranty-files`; bảng `attachments` chỉ giữ đường dẫn. Link xem file là signed URL 5 phút.
+Không chạy lại schema.sql hoặc migration V0.1.1/V0.1.1.1 cũ.
