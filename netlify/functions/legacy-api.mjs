@@ -43,11 +43,15 @@ export const handler=async(event)=>{
     if(action==='search'){
       const deny=need('search','Tài khoản không có quyền tra cứu.');if(deny)return deny
       const q=String(body.q||'').trim(); if(!q)return json(200,{customers:[],products:[],cases:[]}); const like=`%${q.replace(/[%_]/g,'')}%`
-      const [cr,pr,sr]=await Promise.all([
-        db.from('customers').select('id,full_name,phone,address').or(`full_name.ilike.${like},phone.ilike.${like}`).limit(20),
-        db.from('products').select('id,name,sku,brand,model,serial_number,purchase_date,warranty_end_date,invoice_number,customer:customers(full_name,phone)').is('archived_at',null).or(`name.ilike.${like},sku.ilike.${like},brand.ilike.${like},model.ilike.${like},serial_number.ilike.${like},invoice_number.ilike.${like}`).limit(30),
+      const cr=await db.from('customers').select('id,full_name,phone,address').or(`full_name.ilike.${like},phone.ilike.${like}`).limit(20)
+      if(cr.error)throw cr.error
+      const customerIds=(cr.data||[]).map(x=>x.id).filter(Boolean)
+      const productOr=[`name.ilike.${like}`,`sku.ilike.${like}`,`brand.ilike.${like}`,`model.ilike.${like}`,`serial_number.ilike.${like}`,`invoice_number.ilike.${like}`]
+      if(customerIds.length) productOr.push(`customer_id.in.(${customerIds.join(',')})`)
+      const [pr,sr]=await Promise.all([
+        db.from('products').select('id,name,sku,brand,model,serial_number,purchase_date,warranty_end_date,warranty_card_number,invoice_number,customer:customers(full_name,phone,address)').is('archived_at',null).or(productOr.join(',')).limit(50),
         db.from('service_cases').select('id,case_code,status,issue_description,received_at,customer:customers(full_name,phone),product:products(name,sku,serial_number)').is('archived_at',null).or(`case_code.ilike.${like},status.ilike.${like},issue_description.ilike.${like}`).limit(30)
-      ]); if(cr.error)throw cr.error;if(pr.error)throw pr.error;if(sr.error)throw sr.error;return json(200,{customers:cr.data||[],products:pr.data||[],cases:sr.data||[]})
+      ]); if(pr.error)throw pr.error;if(sr.error)throw sr.error;return json(200,{customers:cr.data||[],products:pr.data||[],cases:sr.data||[]})
     }
     if(action==='list_cases'){
       const deny=need('view_cases','Tài khoản không có quyền xem hồ sơ bảo hành.');if(deny)return deny
@@ -70,6 +74,12 @@ export const handler=async(event)=>{
       const deny=need('create_warranty','Không có quyền chỉnh sửa thông tin bảo hành mua mới.');if(deny)return deny;const id=String(body.id||'');const {data:old}=await db.from('products').select('*').eq('id',id).maybeSingle();if(!old)return json(404,{error:'Không tìm thấy sản phẩm.'});const allowed=['name','sku','brand','model','serial_number','purchase_date','warranty_end_date','warranty_card_number','invoice_number'];const patch={};for(const k of allowed)if(k in body.patch)patch[k]=body.patch[k]||null;const {data,error}=await db.from('products').update(patch).eq('id',id).select('*').single();if(error)throw error;await audit('products',id,'update',old,data);return json(200,{product:data})
     }
     if(action==='archive_product'){if(!isAdmin)return json(403,{error:'Chỉ Admin được lưu trữ sản phẩm.'});const id=String(body.id||'');const {data:old}=await db.from('products').select('*').eq('id',id).maybeSingle();if(!old)return json(404,{error:'Không tìm thấy sản phẩm.'});const patch={archived_at:new Date().toISOString(),archived_by:user.id,archive_reason:String(body.reason||'').trim()||'Admin lưu trữ'};const {error}=await db.from('products').update(patch).eq('id',id);if(error)throw error;await audit('products',id,'archive',old,{...old,...patch});return json(200,{ok:true})}
+    if(action==='case_form_options'){
+      const deny=need('receive_faulty','Tài khoản không được phép tiếp nhận hàng lỗi.');if(deny)return deny
+      const {data,error}=await db.from('profiles').select('id,full_name,employee_code,department').is('archived_at',null).neq('is_active',false).order('full_name',{ascending:true})
+      if(error)throw error
+      return json(200,{staff:data||[]})
+    }
     if(action==='create_case'){
       const deny=need('receive_faulty','Tài khoản không được phép tiếp nhận hàng lỗi.');if(deny)return deny;const productId=String(body.product_id||'');const {data:p}=await db.from('products').select('customer_id').eq('id',productId).maybeSingle();if(!p)return json(404,{error:'Không tìm thấy sản phẩm.'});const code=String(body.case_code||'').trim()||`BH-${Date.now().toString().slice(-8)}`
       const payload={case_code:code,customer_id:p.customer_id,product_id:productId,status:String(body.status||'received'),issue_description:String(body.issue_description||'').trim(),condition_description:String(body.condition_description||'').trim()||null,cause_category:String(body.cause_category||'').trim()||null,service_type:String(body.service_type||'warranty'),estimated_fee:body.estimated_fee?Number(body.estimated_fee):null,supplier_name:String(body.supplier_name||'').trim()||null,has_warranty_card:Boolean(body.has_warranty_card),is_sealed:Boolean(body.is_sealed),has_wrapping:Boolean(body.has_wrapping),has_box:Boolean(body.has_box),received_at:body.received_at||new Date().toISOString(),promised_return_at:body.promised_return_at||null,notes:String(body.notes||'').trim()||null,created_by:user.id,assigned_to:body.assigned_to||null};if(!payload.issue_description)return json(400,{error:'Cần mô tả tình trạng/lỗi sản phẩm.'});const {data,error}=await db.from('service_cases').insert(payload).select('id').single();if(error)throw error;await db.from('case_events').insert({service_case_id:data.id,event_type:'created',to_status:payload.status,details:{note:'Tạo hồ sơ tiếp nhận'},actor_id:user.id});await audit('service_cases',data.id,'create',null,payload);return json(200,{id:data.id,case_code:code})

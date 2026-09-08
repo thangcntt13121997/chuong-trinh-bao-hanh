@@ -1,34 +1,46 @@
-# Warranty Management Core V0.1.1.3
+# Warranty Management Core V0.1.1.4
 
-## Permission Repair & Old UI Restore
+## Permission Persistence + Full Faulty Item Intake
 
-Bản này nâng trực tiếp từ V0.1.1.2 và giữ nguyên database legacy hiện tại.
+Bản vá trên V0.1.1.3, giữ nguyên database legacy hiện tại.
 
-### Thay đổi chính
-- Khôi phục giao diện vận hành gần với bản cũ, đặc biệt trên điện thoại.
-- Thanh menu dưới mobile: Tổng quan / Bảo hành mua mới / Tiếp nhận hàng lỗi / Hồ sơ bảo hành.
-- Bổ sung màn hình **Tiếp nhận hàng lỗi** riêng: tìm sản phẩm đã mua -> chọn sản phẩm -> ghi nhận lỗi/tình trạng/phụ kiện -> tạo hồ sơ xử lý.
-- Dashboard quay lại kiểu vận hành: hồ sơ đang xử lý, chờ NCC, lịch sắp tới, quá hạn trả khách, hồ sơ mới tiếp nhận và lịch sắp tới.
-- Phân quyền nhân viên theo từng chức năng bằng checkbox. Quyền được kiểm tra tại Netlify Function phía server.
-- Staff cũ sau migration được cấp đủ quyền nghiệp vụ mặc định, tránh tình trạng đã phân quyền nhưng giao diện/API không hiểu.
-- Profile giao diện lấy qua API server thay vì truy vấn trực tiếp bảng profiles, tránh lỗi do RLS cũ làm menu biến mất.
+### Sửa lỗi phân quyền
+- Tài khoản cũ không có `employee_code` vẫn lưu được quyền.
+- Quyền tiếp tục được lưu tại `profiles.permissions`.
+- Không bắt buộc chạy SQL mới nếu đã chạy migration V0.1.1.3.
 
-## Nâng cấp từ V0.1.1.2
-1. Supabase -> SQL Editor.
-2. Chạy duy nhất:
-   `supabase/upgrade_v0.1.1.3_permissions_and_ui.sql`
-3. Upload toàn bộ source V0.1.1.3 lên GitHub để ghi đè source hiện tại.
-4. Giữ nguyên 4 biến Netlify:
-   - VITE_SUPABASE_URL
-   - VITE_SUPABASE_PUBLISHABLE_KEY
-   - SUPABASE_URL
-   - SUPABASE_SERVICE_ROLE_KEY
-5. Netlify -> Deploys -> Trigger deploy -> Clear cache and deploy site.
+### Khôi phục form Tiếp nhận hàng lỗi
+Form sử dụng đầy đủ các trường có sẵn trong `service_cases`:
+- Mã hồ sơ (có thể tự sinh)
+- Thời điểm tiếp nhận
+- Mô tả lỗi/yêu cầu khách
+- Tình trạng ngoại quan
+- Nhóm nguyên nhân/lỗi
+- Hình thức xử lý
+- Nhà cung cấp/TTBH
+- Chi phí dự kiến
+- Hẹn trả khách/xử lý xong
+- Nhân viên phụ trách
+- Phiếu bảo hành / tem / bao bì / hộp
+- Nhiều ảnh sản phẩm lỗi/phụ kiện
+- Ghi chú nội bộ
 
-## Kiểm tra sau deploy
-- Admin `it` vào Nhân viên -> chọn một nhân viên -> bấm **Đủ quyền nhân viên** -> **Lưu thay đổi & quyền**.
-- Đăng xuất, đăng nhập tài khoản nhân viên đó.
-- Menu phải có Bảo hành mua mới, Tiếp nhận hàng lỗi, Tra cứu và Hồ sơ bảo hành.
-- Tạo thử một hồ sơ tiếp nhận hàng lỗi từ sản phẩm đã lưu.
+### Sửa tìm kiếm tiếp nhận
+Có thể tìm sản phẩm bằng:
+- Số điện thoại khách
+- Tên khách
+- Mã hóa đơn
+- SKU
+- Serial/IMEI
+- Tên/brand/model sản phẩm
 
-Không chạy lại schema.sql hoặc migration V0.1.1/V0.1.1.1 cũ.
+### Nâng cấp
+1. Không chạy lại schema.sql hoặc các migration cũ.
+2. Upload toàn bộ source V0.1.1.4 lên GitHub để ghi đè V0.1.1.3.
+3. Giữ nguyên Environment Variables trên Netlify.
+4. Netlify -> Deploys -> Trigger deploy -> Clear cache and deploy site.
+5. Sau deploy nhấn Ctrl+F5.
+
+### Kiểm tra quyền
+Admin -> Nhân viên -> Phân quyền -> thay checkbox -> Lưu thay đổi & quyền.
+Sau đó đăng xuất tài khoản nhân viên và đăng nhập lại để kiểm tra menu và quyền server.

@@ -121,8 +121,10 @@ export const handler = async (event) => {
       department: String(body.department ?? oldProfile.department ?? '').trim() || null,
       role,
       permissions: normalizePermissions(role, body.permissions ?? oldProfile.permissions),
+      updated_at: new Date().toISOString(),
     }
-    if (!patch.full_name || !patch.employee_code || !/^[a-z0-9._-]{2,40}$/.test(patch.username)) return json(400, { error: 'Họ tên, mã nhân viên và tên đăng nhập không được để trống.' })
+    // Tài khoản legacy có thể chưa có mã nhân viên. Không chặn việc lưu phân quyền chỉ vì thiếu employee_code.
+    if (!patch.full_name || !/^[a-z0-9._-]{2,40}$/.test(patch.username)) return json(400, { error: 'Họ tên và tên đăng nhập không được để trống.' })
     const { data: sameUsername } = await supabase.from('profiles').select('id').ilike('username', patch.username).neq('id', userId).maybeSingle()
     if (sameUsername) return json(400, { error: 'Tên đăng nhập đã được sử dụng.' })
     const { error } = await supabase.from('profiles').update(patch).eq('id', userId)
