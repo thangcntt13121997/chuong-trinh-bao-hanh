@@ -1,4 +1,4 @@
-# Warranty Management Core V0.1.2.4
+# Warranty Management Core V0.1.2.4.1
 
 ## Official Warranty Forms & Smart Printing
 
@@ -33,3 +33,9 @@ Không cần chạy SQL mới nếu đang chạy V0.1.2.3/V0.1.2.2 đầy đủ.
 2. Hồ sơ đổi hàng → mở chi tiết → nút **BM-182** được bật.
 3. Hồ sơ bảo hành → tick 2+ hồ sơ → **In BM-183**.
 4. Hồ sơ bảo hành → **In BM-184 tháng này**.
+
+
+## Hotfix V0.1.2.4.1
+- Sửa lỗi Chrome mở BM ra `about:blank` nhưng không ghi nội dung.
+- Bỏ `noopener,noreferrer` khỏi `window.open` để giữ WindowProxy, sau đó chủ động đặt `opener = null`.
+- Không thay đổi database hoặc SQL.
