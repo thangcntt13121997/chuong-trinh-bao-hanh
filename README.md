@@ -1,46 +1,47 @@
-# Warranty Management Core V0.1.1.4
+# Warranty Management Core V0.1.2.0
 
-## Permission Persistence + Full Faulty Item Intake
+## Mục tiêu phiên bản
+V0.1.2.0 lấy **chương trình cũ đang vận hành** làm baseline. Nguyên tắc của nhánh này là **nâng cấp nhưng không loại bỏ nghiệp vụ cũ**.
 
-Bản vá trên V0.1.1.3, giữ nguyên database legacy hiện tại.
+### Giữ nguyên và khôi phục
+- Tổng quan bảo hành: hồ sơ đang xử lý, đã chuyển NCC, lịch hẹn, quá hạn, hồ sơ mới, lịch sắp tới.
+- Tạo bảo hành mua mới: khách hàng, nhiều sản phẩm trên cùng hóa đơn, SKU, hãng/NCC, model, serial/IMEI, phiếu BH, ngày mua, hạn BH, ảnh hóa đơn.
+- Tiếp nhận sản phẩm lỗi: tìm khách/sản phẩm cũ, tình trạng, mô tả lỗi, nguyên nhân, hướng xử lý, NCC/TTBH, phí dự kiến, lịch hẹn, người phụ trách, phụ kiện/tem/hộp, nhiều ảnh.
+- Hồ sơ bảo hành: tìm kiếm, lọc trạng thái, xem chi tiết, cập nhật trạng thái, lịch hẹn, lịch sử xử lý, file đính kèm.
+- Tra cứu khách hàng: SĐT, tên, SKU, serial, hóa đơn và mã hồ sơ.
+- Nút in danh sách BM-184 tháng hiện tại dùng giao diện in của trình duyệt.
 
-### Sửa lỗi phân quyền
-- Tài khoản cũ không có `employee_code` vẫn lưu được quyền.
-- Quyền tiếp tục được lưu tại `profiles.permissions`.
-- Không bắt buộc chạy SQL mới nếu đã chạy migration V0.1.1.3.
+### Nâng cấp mới vẫn được giữ
+- Đăng nhập bằng username.
+- Admin quản lý nhân viên.
+- Phân quyền theo từng chức năng.
+- Khóa/mở khóa, lưu trữ, reset mật khẩu.
+- Audit log.
+- Supabase Storage private + signed URL.
+- Netlify Functions kiểm tra quyền phía server.
 
-### Khôi phục form Tiếp nhận hàng lỗi
-Form sử dụng đầy đủ các trường có sẵn trong `service_cases`:
-- Mã hồ sơ (có thể tự sinh)
-- Thời điểm tiếp nhận
-- Mô tả lỗi/yêu cầu khách
-- Tình trạng ngoại quan
-- Nhóm nguyên nhân/lỗi
-- Hình thức xử lý
-- Nhà cung cấp/TTBH
-- Chi phí dự kiến
-- Hẹn trả khách/xử lý xong
-- Nhân viên phụ trách
-- Phiếu bảo hành / tem / bao bì / hộp
-- Nhiều ảnh sản phẩm lỗi/phụ kiện
-- Ghi chú nội bộ
+## Database
+Phiên bản này tiếp tục dùng schema legacy hiện tại:
+`customers`, `products`, `service_cases`, `service_appointments`, `case_events`, `attachments`, `generated_documents`, `audit_logs`, `profiles`.
 
-### Sửa tìm kiếm tiếp nhận
-Có thể tìm sản phẩm bằng:
-- Số điện thoại khách
-- Tên khách
-- Mã hóa đơn
-- SKU
-- Serial/IMEI
-- Tên/brand/model sản phẩm
+**Không chạy lại schema.sql hoặc migration V0.1.1.x nếu Supabase hiện tại đã chạy V0.1.1.3.** V0.1.2.0 không yêu cầu migration database mới.
 
-### Nâng cấp
-1. Không chạy lại schema.sql hoặc các migration cũ.
-2. Upload toàn bộ source V0.1.1.4 lên GitHub để ghi đè V0.1.1.3.
-3. Giữ nguyên Environment Variables trên Netlify.
-4. Netlify -> Deploys -> Trigger deploy -> Clear cache and deploy site.
-5. Sau deploy nhấn Ctrl+F5.
+## Environment variables trên Netlify
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-### Kiểm tra quyền
-Admin -> Nhân viên -> Phân quyền -> thay checkbox -> Lưu thay đổi & quyền.
-Sau đó đăng xuất tài khoản nhân viên và đăng nhập lại để kiểm tra menu và quyền server.
+## Deploy
+1. Giải nén source.
+2. Ghi đè toàn bộ source cũ trên GitHub (đặc biệt `src/` và `netlify/functions/`).
+3. Không upload `.env` lên GitHub.
+4. Netlify → Deploys → Trigger deploy → **Clear cache and deploy site**.
+5. Sau khi xanh, trình duyệt Windows dùng `Ctrl + F5`.
+
+## Kiểm tra sau deploy
+- Staff đủ quyền thấy: Tổng quan, Tạo bảo hành mua mới, Tiếp nhận hàng lỗi, Hồ sơ bảo hành, Tra cứu khách hàng.
+- Admin có thêm: Nhân viên & phân quyền, Nhật ký thay đổi.
+- Tạo bảo hành với 2 sản phẩm trên một hóa đơn và kiểm tra tra cứu lại.
+- Tiếp nhận sản phẩm lỗi từ sản phẩm đã lưu, thêm lịch hẹn và file ảnh.
+- Admin bỏ một quyền của staff → đăng nhập staff và kiểm tra menu/API đều bị chặn đúng.
