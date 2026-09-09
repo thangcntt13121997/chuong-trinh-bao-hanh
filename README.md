@@ -1,3 +1,13 @@
+# Warranty Management Core V0.1.2.1
+
+Bản vá tương thích CHECK constraint legacy của `service_cases`.
+
+- service_type: `free_warranty`, `paid_warranty`, `free_exchange`, `paid_exchange`
+- cause_category: `technical`, `user`, `unknown`
+- status: `received`, `pending_supplier`, `sent_supplier`, `supplier_returned`, `ready_for_customer`, `returned_customer`, `cancelled`
+- Không cần chạy SQL mới. Chỉ thay source và redeploy Netlify.
+- Backend có lớp mapping tương thích để các giá trị cũ như `warranty`, `repair`, `processing`, `waiting_supplier` không còn làm lỗi CHECK constraint.
+
 # Warranty Management Core V0.1.2.0
 
 ## Mục tiêu phiên bản

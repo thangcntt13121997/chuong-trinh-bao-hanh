@@ -1,5 +1,5 @@
 import{useEffect,useState}from'react';import{Link}from'react-router-dom';import{api}from'../lib/api'
-const statusLabel:Record<string,string>={received:'Đã tiếp nhận',processing:'Đang xử lý',waiting_supplier:'Chờ nhà cung cấp',ready_return:'Sẵn sàng trả',returned:'Đã trả khách',closed:'Đã hoàn tất'}
+const statusLabel:Record<string,string>={received:'Đã tiếp nhận',pending_supplier:'Chờ NCC xử lý',sent_supplier:'Đã chuyển NCC',supplier_returned:'NCC đã trả hàng',ready_for_customer:'Sẵn sàng trả khách',returned_customer:'Đã trả khách',cancelled:'Đã hủy'}
 export default function Dashboard(){const[data,setData]=useState<any>(null),[err,setErr]=useState('');useEffect(()=>{api({action:'dashboard'}).then(setData).catch(e=>setErr(e.message))},[]);return <>
   <div className="page-head legacy-page-head"><div><h1>Tổng quan bảo hành</h1><p>Theo dõi công việc cần xử lý hôm nay</p></div></div>{err&&<div className="alert danger">{err}</div>}
   <div className="dashboard-grid legacy-dashboard-grid">
