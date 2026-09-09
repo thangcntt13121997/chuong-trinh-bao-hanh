@@ -1,7 +1,8 @@
 import {useEffect,useMemo,useState} from 'react'
-import{NavLink,Outlet,useNavigate}from'react-router-dom'
+import{NavLink,Outlet,useLocation,useNavigate}from'react-router-dom'
 import{supabase}from'../lib/supabase'
 import{can,getMyProfile,type Profile}from'../lib/profile'
+import{api}from'../lib/api'
 
 const Icon=({name}:{name:string})=>{
   const paths:Record<string,string>={
@@ -18,8 +19,9 @@ const Icon=({name}:{name:string})=>{
 }
 
 export default function Layout(){
-  const nav=useNavigate();const[p,setP]=useState<Profile|null>(null)
+  const nav=useNavigate();const location=useLocation();const[p,setP]=useState<Profile|null>(null);const[caseCount,setCaseCount]=useState(0)
   useEffect(()=>{void getMyProfile().then(setP)},[])
+  useEffect(()=>{if(!p||!can(p,'view_cases'))return;api<any>({action:'list_cases'}).then(d=>setCaseCount((d.rows||[]).length)).catch(()=>setCaseCount(0))},[p,location.pathname])
   const logout=async()=>{await supabase.auth.signOut();nav('/login')}
   const today=useMemo(()=>new Intl.DateTimeFormat('vi-VN',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date()),[])
   return <div className="app-shell legacy-shell">
@@ -28,8 +30,9 @@ export default function Layout(){
       <nav className="desktop-nav legacy-nav">
         <NavLink to="/" end><Icon name="dashboard"/><span>Tổng quan</span></NavLink>
         {can(p,'create_warranty')&&<NavLink to="/new"><Icon name="plus"/><span>Tạo bảo hành mua mới</span></NavLink>}
+        {can(p,'create_warranty')&&<NavLink to="/initialize"><Icon name="clipboard"/><span>Khởi tạo dữ liệu khách cũ</span></NavLink>}
         {can(p,'receive_faulty')&&<NavLink to="/receive"><Icon name="box"/><span>Tiếp nhận hàng lỗi</span></NavLink>}
-        {can(p,'view_cases')&&<NavLink to="/cases"><Icon name="clipboard"/><span>Hồ sơ bảo hành</span><em className="nav-count">•</em></NavLink>}
+        {can(p,'view_cases')&&<NavLink to="/cases"><Icon name="clipboard"/><span>Hồ sơ bảo hành</span><em className="nav-count">{caseCount}</em></NavLink>}
         {can(p,'search')&&<NavLink to="/search"><Icon name="search"/><span>Tra cứu khách hàng</span></NavLink>}
         {p?.role==='admin'&&<div className="nav-divider"><span>QUẢN TRỊ</span></div>}
         {p?.role==='admin'&&<NavLink to="/employees"><Icon name="users"/><span>Nhân viên & phân quyền</span></NavLink>}
