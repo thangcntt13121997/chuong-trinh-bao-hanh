@@ -64,7 +64,7 @@ export const handler=async(event)=>{
     }
     if(action==='list_cases'){
       const deny=need('view_cases','Tài khoản không có quyền xem hồ sơ bảo hành.');if(deny)return deny
-      let q=db.from('service_cases').select('id,case_code,status,issue_description,service_type,received_at,promised_return_at,returned_at,customer:customers(full_name,phone),product:products(name,sku,serial_number)').is('archived_at',null).order('created_at',{ascending:false}).limit(100)
+      let q=db.from('service_cases').select('id,case_code,status,issue_description,condition_description,cause_category,service_type,estimated_fee,supplier_name,has_warranty_card,is_sealed,has_wrapping,has_box,received_at,promised_return_at,returned_at,notes,customer:customers(full_name,phone,address),product:products(name,sku,brand,model,serial_number,purchase_date,warranty_end_date,warranty_card_number)').is('archived_at',null).order('created_at',{ascending:false}).limit(100)
       if(body.status)q=q.eq('status',String(body.status));const {data,error}=await q;if(error)throw error;return json(200,{rows:data||[]})
     }
     if(action==='create_warranty'){
@@ -98,6 +98,14 @@ export const handler=async(event)=>{
     }
     if(action==='update_case'){
       const deny=need('edit_cases','Tài khoản không được phép cập nhật hồ sơ bảo hành.');if(deny)return deny;const id=String(body.id||'');const {data:old}=await db.from('service_cases').select('*').eq('id',id).maybeSingle();if(!old)return json(404,{error:'Không tìm thấy hồ sơ.'});const allowed=['status','issue_description','condition_description','cause_category','service_type','estimated_fee','supplier_name','promised_return_at','returned_at','notes','assigned_to'];const patch={};for(const k of allowed)if(k in body.patch)patch[k]=body.patch[k]===''?null:body.patch[k];if('status'in patch)patch.status=normalizeStatus(patch.status);if('service_type'in patch)patch.service_type=normalizeService(patch.service_type);if('cause_category'in patch)patch.cause_category=normalizeCause(patch.cause_category);const {data,error}=await db.from('service_cases').update(patch).eq('id',id).select('*').single();if(error)throw error;if(patch.status&&patch.status!==old.status)await db.from('case_events').insert({service_case_id:id,event_type:'status_changed',from_status:old.status,to_status:patch.status,details:{note:String(body.note||'Cập nhật trạng thái')},actor_id:user.id});await audit('service_cases',id,'update',old,data);return json(200,{row:data})
+    }
+    if(action==='log_document'){
+      const deny=need('view_cases','Tài khoản không có quyền tạo biểu mẫu.');if(deny)return deny
+      const formCode=String(body.form_code||'').trim();if(!['BM-181.KD','BM-182.KD','BM-183.KD','BM-184.KD'].includes(formCode))return json(400,{error:'Mã biểu mẫu không hợp lệ.'})
+      const payload={form_code:formCode,template_version:String(body.template_version||'official-source'),product_id:body.product_id||null,service_case_id:body.service_case_id||null,snapshot_data:body.snapshot_data||{},rendered_html:String(body.rendered_html||'<generated-in-browser>'),created_by:user.id}
+      const {data,error}=await db.from('generated_documents').insert(payload).select('id,form_code,template_version,created_at').single();if(error)throw error
+      await audit('generated_documents',data.id,'create',null,{form_code:formCode,service_case_id:payload.service_case_id,product_id:payload.product_id})
+      return json(200,{row:data})
     }
     if(action==='add_appointment'){
       const deny=need('manage_appointments','Tài khoản không được phép tạo lịch hẹn.');if(deny)return deny;const payload={service_case_id:String(body.service_case_id),appointment_type:String(body.appointment_type||'customer_return'),scheduled_at:body.scheduled_at,status:String(body.status||'scheduled'),note:String(body.note||'').trim()||null,created_by:user.id};if(!payload.scheduled_at)return json(400,{error:'Cần thời gian lịch hẹn.'});const {data,error}=await db.from('service_appointments').insert(payload).select('*').single();if(error)throw error;await audit('service_appointments',data.id,'create',null,payload);return json(200,{row:data})
